@@ -1,0 +1,5 @@
+# Ignore Google API service account key
+ticketbot_backend/ticket-bot-462212-a2931204029d.json
+ticketbot_backend/.env
+ticketbot_backend/savedtb.py
+ticketbot_backend/templates/index_1.html

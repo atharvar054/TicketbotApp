@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <title>स्मार्ट तिकीट सहाय्यक</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #f7f7f7; text-align: center; margin-top: 50px; }
+        .container { background: white; padding: 30px; border-radius: 12px; display: inline-block; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        input[type="text"] { width: 300px; padding: 10px; font-size: 16px; }
+        button, input[type="submit"] { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .response { margin-top: 20px; font-size: 18px; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🧾 स्मार्ट तिकीट सहाय्यक</h2>
+        <form action="/ask" method="post">
+            <label for="user_input">तुमचा प्रश्न: विचारा</label><br><br>
+            <input type="text" name="user_input" required placeholder="उदा: मला ठाण्याला जायचं आहे आणि मी आता वांद्रे मध्ये आहे"><br><br>
+            <input type="submit" value="विचारा">
+        </form>
+
+        {% if user_input %}
+            <div class="response">
+                <h4>तुमचा प्रश्न: </h4>
+                <p>{{ user_input }}</p>
+                <h4>उत्तर: </h4>
+                <pre style="font-size: 18px;">{{ answer }}</pre>
+                <button>फर्स्ट क्लास</button>
+                <button>सेकंड क्लास</button>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
