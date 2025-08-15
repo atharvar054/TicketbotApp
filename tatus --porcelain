@@ -1,0 +1,14 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ticketbot/pubspec.lock', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ticketbot_backend/ticket_bot.py', LF will be replaced by CRLF the next time Git touches it
+README.md
+deployment/Dockerfile.backend
+deployment/docker-compose.yml
+ticketbot/android/app/src/main/AndroidManifest.xml
+ticketbot/lib/main.dart
+ticketbot/lib/routes.dart
+ticketbot/pubspec.lock
+ticketbot/pubspec.yaml
+ticketbot_backend/requirements.txt
+ticketbot_backend/ticket_bot.py

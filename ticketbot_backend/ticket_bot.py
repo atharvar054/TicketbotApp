@@ -1,4 +1,6 @@
 from flask import Flask, request, render_template
+from flask import jsonify
+from flask_cors import CORS
 import google.generativeai as genai
 import requests
 import json
@@ -18,6 +20,8 @@ model = genai.GenerativeModel("gemini-2.5-flash")
 
 
 app = Flask(__name__)
+
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 fares_json_path = os.path.join(BASE_DIR, 'fares.json')
@@ -143,13 +147,7 @@ secondclass_fare_mar: ₹<marathi_secondclass_fare>
             secondclass_fare_mar = line.replace("secondclass_fare_mar:", "").strip()
     return firstclass_fare_mar, secondclass_fare_mar
 
-@app.route('/')
-def home():
-    return render_template("index.html")
-
-@app.route('/ask', methods=["POST"])
-def ask():
-    user_input = request.form.get("user_input")
+def process_ticket_request(user_input):
     gemini_response = get_gemini_response(user_input)
     print("\nGEMINI RESPONSE:\n", gemini_response)
 
@@ -166,99 +164,122 @@ def ask():
             destination_mar = line.replace("गंतव्य स्थान:", "").strip()
         elif line.startswith("प्रवासी संख्या:"):
             marathi_number = line.replace("प्रवासी संख्या:", "").strip()
-            # Convert Marathi number to integer - improved logic
             num_map = {
-                'शून्य': 0, 'एक': 1, 'दोन': 2, 'तीन': 3, 'चार': 4, 'पाच': 5, 
+                'शून्य': 0, 'एक': 1, 'दोन': 2, 'तीन': 3, 'चार': 4, 'पाच': 5,
                 'सहा': 6, 'सात': 7, 'आठ': 8, 'नऊ': 9, 'दहा': 10,
                 'अकरा': 11, 'बारा': 12, 'तेरा': 13, 'चौदा': 14, 'पंधरा': 15
             }
-            
-            # First try to find exact word match
             for word, num in num_map.items():
                 if word in marathi_number:
                     passenger_count = num
                     break
             else:
-                # If no exact match, try to extract any number from the text
-                # import re
-                # Look for digits in the text
                 digits = re.findall(r'\d+', marathi_number)
                 if digits:
                     passenger_count = int(digits[0])
                 else:
-                    passenger_count = 1  # Default to 1 if no number found
+                    passenger_count = 1
         elif line.startswith("परतीचं तिकीट:"):
             is_return = 'होय' in line
 
-    # If unknown source/destination
+    # Fare calculation
     if source_mar == "निश्चित नाही" or destination_mar == "निश्चित नाही":
         firstclass_fare_mar = "निश्चित नाही"
         secondclass_fare_mar = "निश्चित नाही"
     else:
         source_eng, destination_eng = gemini_conv_to_eng(source_mar, destination_mar)
-        
-        # Debug: Print the conversion results
-        print(f"\nDEBUG - Station Conversion:")
-        print(f"Source Marathi: '{source_mar}' -> English: '{source_eng}'")
-        print(f"Destination Marathi: '{destination_mar}' -> English: '{destination_eng}'")
-        
+        print(f"\nDEBUG - Station Conversion: {source_mar} -> {source_eng}, {destination_mar} -> {destination_eng}")
+
         fares = fares_data.get((source_eng, destination_eng))
-        
-        # Debug: Print fare lookup result
-        print(f"Fare lookup for ({source_eng}, {destination_eng}): {fares}")
-        
-        # Check if route exists in both directions
         reverse_fares = fares_data.get((destination_eng, source_eng))
-        print(f"Reverse route ({destination_eng}, {source_eng}): {reverse_fares}")
-        
+
         if fares:
             base_first = fares["first"]
             base_second = fares["second"]
-            multiplier = passenger_count * (2 if is_return else 1)
-            total_first = base_first * multiplier
-            total_second = base_second * multiplier
-            
-            print(f"Base fares: First={base_first}, Second={base_second}")
-            print(f"Multiplier: {multiplier}, Total: First={total_first}, Second={total_second}")
         elif reverse_fares:
-            # Try reverse route if original doesn't exist
-            print(f"Using reverse route: {destination_eng} -> {source_eng}")
             base_first = reverse_fares["first"]
             base_second = reverse_fares["second"]
-            multiplier = passenger_count * (2 if is_return else 1)
-            total_first = base_first * multiplier
-            total_second = base_second * multiplier
-            
-            print(f"Base fares (reverse): First={base_first}, Second={base_second}")
-            print(f"Multiplier: {multiplier}, Total: First={total_first}, Second={total_second}")
         else:
-            total_first = total_second = 0
-            print(f"No fare data found for route: {source_eng} -> {destination_eng} or reverse")
+            base_first = base_second = 0
 
-        # Convert total fares to Marathi
+        multiplier = passenger_count * (2 if is_return else 1)
+        total_first = base_first * multiplier
+        total_second = base_second * multiplier
+
         firstclass_fare_mar, secondclass_fare_mar = gemini_conv_from_eng(str(total_first), str(total_second))
 
-    # Convert passenger count to Marathi
-    passenger_count_mar = ""
+    # Convert passenger count & return ticket to Marathi
     num_map_reverse = {
-        0: 'शून्य', 1: 'एक', 2: 'दोन', 3: 'तीन', 4: 'चार', 5: 'पाच', 
+        0: 'शून्य', 1: 'एक', 2: 'दोन', 3: 'तीन', 4: 'चार', 5: 'पाच',
         6: 'सहा', 7: 'सात', 8: 'आठ', 9: 'नऊ', 10: 'दहा',
         11: 'अकरा', 12: 'बारा', 13: 'तेरा', 14: 'चौदा', 15: 'पंधरा'
     }
     passenger_count_mar = num_map_reverse.get(passenger_count, str(passenger_count))
-    
-    # Convert return ticket status to Marathi
     return_ticket_mar = "होय" if is_return else "नाही"
-    
-    final_answer = f"""स्रोत स्थान: {source_mar}
-गंतव्य स्थान: {destination_mar}
-प्रवासी संख्या: {passenger_count_mar}  
-परतीचं तिकीट: {return_ticket_mar}  
-भाडं - फर्स्ट क्लास : {firstclass_fare_mar}
-भाडं - सेकंड क्लास : {secondclass_fare_mar}
-"""
 
+    # Final answer string (for web)
+    final_answer = f"""स्रोत स्थान: {source_mar}
+    गंतव्य स्थान: {destination_mar}
+    प्रवासी संख्या: {passenger_count_mar}  
+    परतीचं तिकीट: {return_ticket_mar}  
+    भाडं - फर्स्ट क्लास : {firstclass_fare_mar}
+    भाडं - सेकंड क्लास : {secondclass_fare_mar}
+    """
+
+    return (
+        final_answer,       # Full Marathi string
+        source_mar,         # Source in Marathi
+        destination_mar,    # Destination in Marathi
+        passenger_count_mar,# Passenger count in Marathi
+        return_ticket_mar,  # Return ticket in Marathi
+        firstclass_fare_mar,# First class fare in Marathi
+        secondclass_fare_mar# Second class fare in Marathi
+    )
+
+
+@app.route('/')
+def home():
+    return render_template("index.html")
+
+@app.route('/ask', methods=["POST"])
+def ask():
+    user_input = request.form.get("user_input")
+    final_answer, *_ = process_ticket_request(user_input)
     return render_template("index.html", user_input=user_input, answer=final_answer)
 
+@app.route('/api/ask', methods=["POST"])
+def api_ask():
+    try:
+        data = request.get_json()
+        if not data or "user_input" not in data:
+            return jsonify({"error": "Missing 'user_input' in request body"}), 400
+
+        user_input = data["user_input"]
+        (
+            final_answer,
+            source_mar,
+            destination_mar,
+            passenger_count_mar,
+            return_ticket_mar,
+            firstclass_fare_mar,
+            secondclass_fare_mar
+        ) = process_ticket_request(user_input)
+
+        return jsonify({
+            "source": source_mar,
+            "destination": destination_mar,
+            "passenger_count": passenger_count_mar,
+            "return_ticket": return_ticket_mar,
+            "first_class_fare": firstclass_fare_mar,
+            "second_class_fare": secondclass_fare_mar,
+            "final_answer": final_answer
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=8000)
+    # Bind to all interfaces so real devices on the same network can reach it
+    app.run(host="0.0.0.0", debug=True, port=8000)
