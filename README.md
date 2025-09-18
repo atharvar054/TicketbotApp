@@ -168,11 +168,3 @@ flutter build apk --release --dart-define=API_BASE_URL=https://your-app.onrender
 ```bash
 flutter clean && flutter pub get
 ```
-
-## 📄 License
-
-MIT License
-
----
-
-**Note**: Keep your Google API key secure and never commit it to version control.

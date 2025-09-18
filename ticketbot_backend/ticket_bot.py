@@ -1,20 +1,25 @@
 from flask import Flask, request, render_template
 from flask import jsonify
 from flask_cors import CORS
+from google.cloud import speech
+from dotenv import load_dotenv
+from pydub import AudioSegment
+from google.cloud import speech_v1 as speech
 import google.generativeai as genai
 import requests
 import json
 import os
 import re
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-# Get API key
-api_key = os.getenv("GOOGLE_API_KEY")
-# Configure Gemini with the loaded API key
-genai.configure(api_key=api_key)
+# Setting file path for .env file and Load environment variables from .env file
+base_dir = os.path.dirname(__file__)
+env_path = os.path.join(base_dir, ".env")
+if os.path.exists(env_path):
+    load_dotenv(env_path)
+
+# Set credentials directly to the file in this folder
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(base_dir, "ticketbot.json")
 # Set up Gemini model
 model = genai.GenerativeModel("gemini-2.5-flash")
 
@@ -23,8 +28,8 @@ app = Flask(__name__)
 
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-fares_json_path = os.path.join(BASE_DIR, 'fares.json')
+# Setting file path for fares dataset
+fares_json_path = os.path.join(base_dir, 'fares.json')
 
 with open(fares_json_path, 'r', encoding='utf-8') as f:
     fares_data_json = json.load(f)
