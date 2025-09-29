@@ -6,10 +6,15 @@ from dotenv import load_dotenv
 from pydub import AudioSegment
 from google.cloud import speech_v1 as speech
 import google.generativeai as genai
+import wave
 import requests
 import json
 import os
 import re
+import io
+from transcribe_audio import transcribe_audio
+from contextlib import redirect_stdout
+from io import StringIO
 
 
 # Setting file path for .env file and Load environment variables from .env file
@@ -17,20 +22,20 @@ base_dir = os.path.dirname(__file__)
 env_path = os.path.join(base_dir, ".env")
 if os.path.exists(env_path):
     load_dotenv(env_path)
-
+    
+# Load your Gemini API key
+genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 # Set credentials directly to the file in this folder
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(base_dir, "ticketbot.json")
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(base_dir, "old_ticketbot.json")  
+
 # Set up Gemini model
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 
 app = Flask(__name__)
-
 CORS(app, resources={r"/api/*": {"origins": "*"}})
-
 # Setting file path for fares dataset
 fares_json_path = os.path.join(base_dir, 'fares.json')
-
 with open(fares_json_path, 'r', encoding='utf-8') as f:
     fares_data_json = json.load(f)
 
@@ -232,14 +237,18 @@ def process_ticket_request(user_input):
     """
 
     return (
-        final_answer,       # Full Marathi string
-        source_mar,         # Source in Marathi
-        destination_mar,    # Destination in Marathi
-        passenger_count_mar,# Passenger count in Marathi
-        return_ticket_mar,  # Return ticket in Marathi
-        firstclass_fare_mar,# First class fare in Marathi
-        secondclass_fare_mar# Second class fare in Marathi
+        final_answer,         # Full Marathi string
+        source_mar,           # Source in Marathi
+        destination_mar,      # Destination in Marathi
+        passenger_count_mar,  # Passenger count in Marathi
+        return_ticket_mar,    # Return ticket in Marathi
+        firstclass_fare_mar,  # First class fare in Marathi
+        secondclass_fare_mar  # Second class fare in Marathi
     )
+
+################################################     SPEECH-TO-TEXT     ######################################
+
+
 
 
 @app.route('/')
@@ -283,8 +292,43 @@ def api_ask():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/transcribe', methods=["POST"])
+
+def api_transcribe():
+    try:
+        file = request.files.get('file')
+        if not file:
+            return jsonify({"error": "file missing"}), 400
+
+        # Save upload with .webm extension
+        in_path = os.path.join(base_dir, 'static', 'upload_input.webm')
+        wav_path = os.path.join(base_dir, 'static', 'upload_input_mono.wav')
+        file.save(in_path)
+
+        # Convert to 16kHz mono WAV
+        seg = AudioSegment.from_file(in_path)
+        seg = seg.set_frame_rate(16000).set_channels(1).set_sample_width(2)
+        seg.export(wav_path, format='wav')
+
+        # Use transcribe_audio function
+        buf = StringIO()
+        with redirect_stdout(buf):
+            transcribe_audio(wav_path, language_code="mr-IN")
+        printed = buf.getvalue()
+
+        # Extract transcript lines
+        lines = [ln.strip() for ln in printed.splitlines() if ln.strip().startswith('[Transcript]:')]
+        transcript = ' '.join([ln.replace('[Transcript]:', '').strip() for ln in lines])
+        
+        if not transcript:
+            return jsonify({"transcript": "No speech detected"})
+        
+        return jsonify({"transcript": transcript})
+    except Exception as e:
+        print(f"Error in transcribe: {e}")
+        return jsonify({"error": str(e)}), 500
+    
 
 
 if __name__ == "__main__":
-    # Bind to all interfaces so real devices on the same network can reach it
     app.run(host="0.0.0.0", debug=True, port=8000)

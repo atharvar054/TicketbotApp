@@ -1,30 +1,33 @@
-# TicketBot App
+# TicketBot App (Flutter + Flask)
 
-A bilingual (English/Marathi) ticket booking chatbot for Mumbai local train services with Flutter frontend and Flask backend.
+A bilingual (English/Marathi) ticket assistant for Mumbai local trains.
+- Flutter frontend (mobile/web)
+- Flask backend (fares + AI + speech-to-text)
 
-## 🚀 Features
+## Features
+- Bilingual input (EN/MR)
+- Fare calculation (1st/2nd class)
+- Voice input on web (Record → Transcribe → Auto-search)
+- Simple MVC in Flutter
 
-- **Bilingual Support**: English and Marathi language processing
-- **AI-Powered**: Google Gemini AI for natural language understanding
-- **Real-time Fare Calculation**: First and second class ticket pricing
-- **Cross-platform**: Android, iOS, Web, Desktop
-- **Smart Parsing**: Extracts source, destination, passenger count, return preferences
-
-## 📁 Project Structure
-
+## Project Structure
 ```
 TicketbotApp/
-├── ticketbot/                 # Flutter frontend
-│   ├── lib/screens/chat/      # Main ticket interface (MVC pattern)
-│   └── android/               # Android configuration
-├── ticketbot_backend/         # Flask backend API
-│   ├── ticket_bot.py          # Main application
-│   ├── fares.json             # Fare database
-│   └── requirements.txt       # Python dependencies
-└── deployment/                # Docker deployment files
+├─ ticketbot/                # Flutter app
+│  └─ lib/screens/chat/      # Ticket UI (MVC)
+├─ ticketbot_backend/        # Flask backend API
+│  ├─ ticket_bot.py          # Main API + /api/transcribe
+│  ├─ transcribe_audio.py    # CLI speech->text helpers
+│  └─ fares.json             # Fare data
+└─ deployment/               # (optional) Docker files
 ```
 
-## 🛠️ Technology Stack
+## Prerequisites
+- Flutter 3.8+
+- Python 3.11+
+- Google Gemini API key
+- Google Cloud Speech-to-Text enabled + service account JSON
+- ffmpeg installed (for webm→wav on backend)
 
 ### Frontend
 - **Flutter**: Cross-platform UI framework
@@ -39,132 +42,61 @@ TicketbotApp/
 - **Gunicorn**: Production WSGI server
 
 ## 📋 Prerequisites
-
 - **Flutter SDK** (3.8.1 or higher)
 - **Python 3.11** or higher
 - **Google Gemini API Key**
 - **Git**
 
 ## 🔧 Setup Instructions
-
 ### 1. Clone the Repository
 ```bash
 git clone <your-repo-url>
 cd TicketbotApp
 ```
-
 ### 2. Backend Setup
-
 #### Install Python Dependencies
 ```bash
 cd ticketbot_backend
 pip install -r requirements.txt
-
-# Create .env file with your API key
-echo "GOOGLE_API_KEY=your_api_key_here" > .env
-
-# Run backend
+# .env should contain GOOGLE_API_KEY=... (Gemini)
+# ticket_bot.py points GOOGLE_APPLICATION_CREDENTIALS to your service account JSON
 python ticket_bot.py
+# Runs at http://127.0.0.1:8000
 ```
 
-### Frontend Setup
+Notes
+- Voice recording uses /api/transcribe
+- If testing over LAN (http://192.168.x.x:8000), mic requires HTTPS or dev flag; easiest is an https tunnel (e.g., ngrok)
+
+## Flutter Setup
 ```bash
 cd ticketbot
 flutter pub get
-
-# Run on different platforms
-flutter run -d android                    # Android emulator
-flutter run -d chrome                     # Web browser
-flutter run -d <device-id>                # Real device
-```
-
-## 📱 Mobile App Usage
-
-### Development (USB Connection)
-```bash
-# Find your laptop's IP
-ipconfig
-
-# Run with your IP
+# Web local
+flutter run -d chrome --dart-define=API_BASE_URL=http://127.0.0.1:8000
+# Android emulator
+flutter run -d android --dart-define=API_BASE_URL=http://10.0.2.2:8000
+# Real device (LAN): replace with your PC IP
 flutter run -d <device-id> --dart-define=API_BASE_URL=http://192.168.1.45:8000
 ```
 
-### Permanent Installation
-```bash
-# Install permanently
-flutter install -d <device-id> --dart-define=API_BASE_URL=http://192.168.1.45:8000
+## Web Voice Flow (Backend Page)
+- Open backend home page (GET /)
+- Click "Start Recording" → speak → click again
+- Backend:
+  - Receives audio at /api/transcribe
+  - Converts to 16kHz mono WAV
+  - Transcribes with Google Speech
+  - Auto-fills the "user_input" field
+  - Submits the form to /ask
+  - Renders fare answer inside the assistant window
+  - Shows transcript below the mic button
 
-# Or build APK
-flutter build apk --release --dart-define=API_BASE_URL=http://192.168.1.45:8000
-```
+## Minimal API Endpoints
+- POST `/api/ask`
+  - Body: `{ "user_input": "Dadar to CSMT" }`
+  - Returns JSON with parsed fields + `final_answer`
+- POST `/api/transcribe`
+  - FormData with `file` (audio/webm)
+  - Returns `{ transcript, final_answer }` (used by backend page)
 
-## ☁️ Production Deployment
-
-### Quick Deploy (Render.com)
-1. Connect GitHub repo to Render
-2. Create Web Service with:
-   - Build: `pip install -r requirements.txt`
-   - Start: `gunicorn -b 0.0.0.0:$PORT ticket_bot:app`
-   - Environment: `GOOGLE_API_KEY=your_key`
-3. Deploy and use the URL in your app
-
-### Update App for Production
-```bash
-flutter build apk --release --dart-define=API_BASE_URL=https://your-app.onrender.com
-```
-
-## 🔍 API Usage
-
-### Endpoint: `POST /api/ask`
-```json
-// Request
-{
-  "user_input": "Mumbai to Pune ticket for 2 people"
-}
-
-// Response
-{
-  "source": "मुंबई",
-  "destination": "पुणे", 
-  "passenger_count": "दोन",
-  "return_ticket": "नाही",
-  "first_class_fare": "₹१७०",
-  "second_class_fare": "₹२०",
-  "final_answer": "स्रोत स्थान: मुंबई\nगंतव्य स्थान: पुणे\n..."
-}
-```
-
-## 🎯 Sample Queries
-
-- "मुंबई ते पुणे तिकीट"
-- "Dadar to Bandra return ticket for 2 passengers"
-- "दादर ते बांद्रा परतीचं तिकीट"
-- "Mumbai to Pune ticket for 3 people"
-
-## 🔧 Configuration
-
-### Network URLs
-- **Android Emulator**: `http://10.0.2.2:8000`
-- **Real Device**: `http://your-laptop-ip:8000`
-- **Production**: `https://your-deployed-backend.com`
-
-### Environment Variables
-- `GOOGLE_API_KEY`: Google Gemini API key
-- `API_BASE_URL`: Backend URL for Flutter app
-
-## 🐛 Troubleshooting
-
-**Backend Connection Failed:**
-- Ensure backend runs on `0.0.0.0:8000`
-- Check both devices on same WiFi network
-- Verify firewall settings
-
-**Mobile App Issues:**
-- Enable USB debugging (Android)
-- Trust computer (iOS)
-- Check device permissions
-
-**Build Issues:**
-```bash
-flutter clean && flutter pub get
-```

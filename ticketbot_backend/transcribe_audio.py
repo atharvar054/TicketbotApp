@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import wave
 from dotenv import load_dotenv
@@ -47,8 +46,8 @@ def transcribe_audio(input_file, language_code="mr-IN"):
 
 
 if __name__ == "__main__":
-    input_path = os.path.join(base_dir, "static", "Hi_surekha.mp3")
-    output_path = os.path.join(base_dir, "static", "Hi_surekha.wav")
+    input_path = os.path.join(base_dir, "static", "upload_input_mono.wav")
+    output_path = os.path.join(base_dir, "static", "upload_input_mono.wav")
 
     convert_to_mono(input_path, output_path)
     print_sample_rate(output_path)
